@@ -1,0 +1,70 @@
+name: Build and Push Spire Image
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'image/postgres.nix'
+      - '.github/workflows/build-spire-image.yml'
+  pull_request:
+    paths:
+      - 'image/postgres.nix'
+      - '.github/workflows/build-spire-image.yml'
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/spire-postgresql
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v26
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+
+      - name: Build Docker image with Nix
+        run: |
+          nix-build image/postgres.nix -o result
+          docker load < result
+
+      - name: Log in to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Tag and push Docker image
+        if: github.event_name != 'pull_request'
+        run: |
+          for tag in $(echo "${{ steps.meta.outputs.tags }}" | tr ',' '\n'); do
+            docker tag spire-postgresql:latest "$tag"
+            docker push "$tag"
+          done
+
+      - name: Image digest
+        if: github.event_name != 'pull_request'
+        run: echo "Image pushed with tags:\ ${{ steps.meta.outputs.tags }}"
