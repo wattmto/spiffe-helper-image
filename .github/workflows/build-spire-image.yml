@@ -15,7 +15,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}/spiffe-helper-postgresql
+  IMAGE_NAME: ${{ github.repository }}/postgresql
 
 jobs:
   build-and-push:
@@ -61,7 +61,7 @@ jobs:
         if: github.event_name != 'pull_request'
         run: |
           for tag in $(echo "${{ steps.meta.outputs.tags }}" | tr ',' '\n'); do
-            docker tag spiffe-helper-postgresql:latest "$tag"
+            docker tag postgresql:latest "$tag"
             docker push "$tag"
           done
 
