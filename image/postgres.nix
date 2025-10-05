@@ -10,7 +10,7 @@ pkgs.dockerTools.buildLayeredImage {
   ];
 
   config = {
-    Cmd = [ "${pkgs.spiffe-helper}/bin/spiffe-helper" ];
+    Entrypoint = [ "${pkgs.spiffe-helper}/bin/spiffe-helper" ];
     Env = [
       "PATH=/bin"
     ];
