@@ -1,7 +1,7 @@
 { pkgs ? import <nixpkgs> {} }:
 
 pkgs.dockerTools.buildLayeredImage {
-  name = "spire-postgresql";
+  name = "spiffe-helper-postgresql";
   tag = "latest";
 
   contents = with pkgs; [
