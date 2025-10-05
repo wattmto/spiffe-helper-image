@@ -5,12 +5,12 @@ pkgs.dockerTools.buildLayeredImage {
   tag = "latest";
 
   contents = with pkgs; [
-    spire-server
+    spiffe-helper
     postgresql
   ];
 
   config = {
-    Cmd = [ "${pkgs.spire-server}/bin/spire-server" "run" ];
+    Cmd = [ "${pkgs.spiffe-helper}/bin/spiffe-helper" ];
     Env = [
       "PATH=/bin"
     ];
