@@ -20,6 +20,13 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - nix_system: x86_64-linux
+            arch: amd64
+          - nix_system: aarch64-linux
+            arch: arm64
     permissions:
       contents: read
       packages: write
@@ -32,11 +39,13 @@ jobs:
         uses: cachix/install-nix-action@v26
         with:
           nix_path: nixpkgs=channel:nixos-unstable
+          extra_nix_config: |
+            extra-platforms = aarch64-linux
 
       - name: Build Docker image with Nix
         run: |
-          nix-build image/postgres.nix -o result
-          docker load < result
+          nix-build image/postgres.nix --argstr system ${{ matrix.nix_system }} -o result-${{ matrix.arch }}
+          docker load < result-${{ matrix.arch }}
 
       - name: Log in to GitHub Container Registry
         if: github.event_name != 'pull_request'
@@ -61,10 +70,51 @@ jobs:
         if: github.event_name != 'pull_request'
         run: |
           for tag in $(echo "${{ steps.meta.outputs.tags }}" | tr ',' '\n'); do
-            docker tag postgresql:latest "$tag"
-            docker push "$tag"
+            arch_tag="${tag}-${{ matrix.arch }}"
+            docker tag postgresql:latest "$arch_tag"
+            docker push "$arch_tag"
           done
 
       - name: Image digest
         if: github.event_name != 'pull_request'
-        run: echo "Image pushed with tags:\ ${{ steps.meta.outputs.tags }}"
+        run: echo "Image pushed with arch tags:\ ${{ steps.meta.outputs.tags }}-${{ matrix.arch }}"
+
+  publish-manifests:
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.event_name != 'pull_request'
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Create and push multi-arch manifests
+        run: |
+          for tag in $(echo "${{ steps.meta.outputs.tags }}" | tr ',' '\n'); do
+            docker buildx imagetools create \
+              -t "$tag" \
+              "$tag-amd64" \
+              "$tag-arm64"
+            docker buildx imagetools inspect "$tag"
+          done
