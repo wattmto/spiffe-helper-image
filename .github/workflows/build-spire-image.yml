@@ -42,6 +42,12 @@ jobs:
           extra_nix_config: |
             extra-platforms = aarch64-linux
 
+      - name: Set up QEMU for arm64
+        if: matrix.arch == 'arm64'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
       - name: Build Docker image with Nix
         run: |
           nix-build image/postgres.nix --argstr system ${{ matrix.nix_system }} -o result-${{ matrix.arch }}
