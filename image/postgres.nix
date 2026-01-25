@@ -9,6 +9,7 @@ pkgs.dockerTools.buildLayeredImage {
   contents = with pkgs; [
     spiffe-helper
     postgresql
+    dockerTools.fakeNss
   ];
 
   config = {
